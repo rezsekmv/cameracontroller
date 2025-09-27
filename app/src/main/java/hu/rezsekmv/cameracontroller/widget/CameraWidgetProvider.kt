@@ -49,9 +49,6 @@ class CameraWidgetProvider : AppWidgetProvider() {
                     views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
                     
                     appWidgetManager.updateAppWidget(appWidgetIds, views)
-                    Log.d(TAG, "Widget updated with background: $backgroundRes, action: $action")
-                } else {
-                    Log.d(TAG, "No widgets found to update")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to update widget with state", e)
@@ -60,7 +57,6 @@ class CameraWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        Log.d(TAG, "onUpdate called with ${appWidgetIds.size} widgets")
         
         for (appWidgetId in appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId)
@@ -69,41 +65,34 @@ class CameraWidgetProvider : AppWidgetProvider() {
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        Log.d(TAG, "Widget enabled - starting WiFi-aware periodic updates")
         WidgetWorkManager.startPeriodicUpdates(context)
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        Log.d(TAG, "Widget disabled - stopping WiFi-aware periodic updates")
         WidgetWorkManager.stopPeriodicUpdates(context)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         
-        Log.d(TAG, "onReceive called with action: ${intent.action}")
-        
         when (intent.action) {
             ACTION_TOGGLE_MOTION -> {
-                Log.d(TAG, "Toggle motion action received - using WorkManager")
                 WidgetWorkManager.triggerImmediateToggle(context)
             }
             ACTION_REFRESH_WIDGET -> {
-                Log.d(TAG, "Refresh widget action received - using WorkManager")
                 WidgetWorkManager.triggerImmediateRefresh(context)
             }
             Intent.ACTION_BOOT_COMPLETED -> {
-                Log.d(TAG, "Device booted - no automatic refresh")
+                // No action needed on boot
             }
             else -> {
-                Log.d(TAG, "Unknown action received: ${intent.action}")
+                // Unknown action
             }
         }
     }
 
     private fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
-        Log.d(TAG, "Updating widget $appWidgetId")
         
         val views = RemoteViews(context.packageName, R.layout.camera_widget)
         
@@ -117,8 +106,6 @@ class CameraWidgetProvider : AppWidgetProvider() {
         )
         views.setOnClickPendingIntent(R.id.widget_container, refreshPendingIntent)
         
-        Log.d(TAG, "Set refresh intent for widget button (initial gray state)")
-        
         // Initial state - show camera icon with gray background
         views.setInt(R.id.widget_container, "setBackgroundResource", R.drawable.widget_button_gray)
         
@@ -126,6 +113,5 @@ class CameraWidgetProvider : AppWidgetProvider() {
         
         // Don't start service here - Android restricts background service starts
         // Service will be started when widget is actually used (tapped)
-        Log.d(TAG, "Widget updated - service will start on first use")
     }
 }

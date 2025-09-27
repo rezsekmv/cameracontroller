@@ -7,7 +7,6 @@ import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.scalars.ScalarsConverterFactory
 import java.net.SocketTimeoutException
@@ -39,29 +38,24 @@ class CameraRepository {
 
     fun updateEndpoint(endpoint: String) {
         if (endpoint != currentEndpoint) {
-            Log.d(TAG, "Updating endpoint from '$currentEndpoint' to '$endpoint'")
             currentEndpoint = endpoint
             apiService = createApiService(endpoint)
-            Log.d(TAG, "API service created for endpoint: $endpoint")
         }
     }
     
     fun updateConfiguration(getConfigPath: String, setConfigPath: String, timeoutSeconds: Int) {
-        Log.d(TAG, "Updating configuration - getPath: $getConfigPath, setPath: $setConfigPath, timeout: ${timeoutSeconds}s")
         this.getConfigPath = getConfigPath
         this.setConfigPath = setConfigPath
         if (this.timeoutSeconds != timeoutSeconds) {
             this.timeoutSeconds = timeoutSeconds
             if (currentEndpoint.isNotEmpty()) {
                 apiService = createApiService(currentEndpoint)
-                Log.d(TAG, "Recreated API service with new timeout: ${timeoutSeconds}s")
             }
         }
     }
 
     private fun createApiService(endpoint: String): CameraApiService? {
         return try {
-            Log.d(TAG, "Creating API service for endpoint: $endpoint")
             val urlParts = endpoint.replace("http://", "").split("@")
             if (urlParts.size != 2) {
                 Log.e(TAG, "Invalid endpoint format - missing credentials: $endpoint")
@@ -77,33 +71,17 @@ class CameraRepository {
             val baseUrl = "http://${urlParts[1]}"
             val username = credentials[0]
             val password = credentials[1]
-            
-            Log.d(TAG, "Parsed endpoint - baseUrl: $baseUrl, username: $username")
-
-            // Create HTTP logging interceptor
-            val loggingInterceptor = HttpLoggingInterceptor { message ->
-                Log.d("$TAG-HTTP", message)
-            }.apply {
-                level = HttpLoggingInterceptor.Level.BODY
-            }
 
             val client = OkHttpClient.Builder()
-                .addInterceptor(loggingInterceptor)
                 .authenticator { _, response ->
-                    Log.d(TAG, "Authenticator called with response code: ${response.code}")
-                    
                     if (response.request.header("Authorization") != null) {
-                        Log.d(TAG, "Request already has Authorization header, skipping")
                         return@authenticator null
                     }
                     
                     val authHeader = response.header("WWW-Authenticate")
-                    Log.d(TAG, "WWW-Authenticate header: $authHeader")
                     
                     if (authHeader != null && authHeader.contains("Digest")) {
-                        Log.d(TAG, "Creating digest authentication")
                         val digestAuth = createDigestAuth(authHeader, username, password, response.request)
-                        Log.d(TAG, "Generated digest auth: $digestAuth")
                         response.request.newBuilder()
                             .header("Authorization", digestAuth)
                             .build()
@@ -125,7 +103,6 @@ class CameraRepository {
                 .build()
 
             val service = retrofit.create(CameraApiService::class.java)
-            Log.d(TAG, "Successfully created API service")
             service
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create API service", e)
@@ -141,15 +118,11 @@ class CameraRepository {
                     return@withContext MotionDetectionStatus(null, false, "Camera service not initialized")
                 }
                 
-                Log.d(TAG, "Starting getMotionDetectionStatus API call with path: $getConfigPath")
                 val response = service.getRequest(getConfigPath)
-                Log.d(TAG, "getMotionDetectionStatus API call completed - success: ${response.isSuccessful}, code: ${response.code()}")
                 
                 if (response.isSuccessful) {
                     val body = response.body()
-                    Log.d(TAG, "Response body: $body")
                     val isEnabled = body?.let { parseMotionDetectionStatus(it) }
-                    Log.d(TAG, "Parsed motion detection status: $isEnabled")
                     MotionDetectionStatus(isEnabled, true)
                 } else {
                     val errorMessage = when (response.code()) {
@@ -200,12 +173,9 @@ class CameraRepository {
                 }
                 
                 val fullPath = "$setConfigPath$enable"
-                Log.d(TAG, "Starting setMotionDetectionStatus API call with path: $fullPath")
                 val response = service.getRequest(fullPath)
-                Log.d(TAG, "setMotionDetectionStatus API call completed - success: ${response.isSuccessful}, code: ${response.code()}")
                 
                 if (response.isSuccessful) {
-                    Log.d(TAG, "Successfully set motion detection to: $enable")
                     ApiResult.Success(true)
                 } else {
                     val errorMessage = when (response.code()) {
@@ -249,9 +219,7 @@ class CameraRepository {
 
     private fun parseMotionDetectionStatus(responseBody: String): Boolean? {
         return try {
-            Log.d(TAG, "Parsing motion detection status from response")
             val lines = responseBody.split("\n")
-            Log.d(TAG, "Response has ${lines.size} lines")
             
             for (line in lines) {
                 Log.v(TAG, "Checking line: $line")
@@ -259,8 +227,6 @@ class CameraRepository {
                     val value = line.split("=").getOrNull(1)?.trim()
                     val lowercase = value?.lowercase()
                     val isEnabled = lowercase == "true"
-                    Log.d(TAG, "Found motion detection line: $line")
-                    Log.d(TAG, "Raw value: '$value', lowercase: '$lowercase', equals 'true': $isEnabled")
                     return isEnabled
                 }
             }
@@ -273,24 +239,17 @@ class CameraRepository {
     }
 
     private fun createDigestAuth(authHeader: String, username: String, password: String, request: Request): String {
-        Log.d(TAG, "Creating digest auth from header: $authHeader")
         val params = parseDigestHeader(authHeader)
         val realm = params["realm"] ?: ""
         val nonce = params["nonce"] ?: ""
         val qop = params["qop"]
         val algorithm = params["algorithm"] ?: "MD5"
         
-        Log.d(TAG, "Digest params - realm: $realm, nonce: $nonce, qop: $qop, algorithm: $algorithm")
-        
         val uri = request.url.encodedPath + if (request.url.encodedQuery != null) "?${request.url.encodedQuery}" else ""
         val method = request.method
         
-        Log.d(TAG, "Request details - method: $method, uri: $uri")
-        
         val ha1 = md5("$username:$realm:$password")
         val ha2 = md5("$method:$uri")
-        
-        Log.d(TAG, "Hash calculations - ha1: $ha1, ha2: $ha2")
         
         val response = if (qop == "auth") {
             val nc = "00000001"
@@ -299,8 +258,6 @@ class CameraRepository {
         } else {
             md5("$ha1:$nonce:$ha2")
         }
-        
-        Log.d(TAG, "Final response hash: $response")
         
         return buildString {
             append("Digest ")

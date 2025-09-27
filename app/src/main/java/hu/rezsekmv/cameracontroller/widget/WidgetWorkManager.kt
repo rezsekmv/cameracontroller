@@ -18,7 +18,6 @@ object WidgetWorkManager {
     
     fun startPeriodicUpdates(context: Context) {
         try {
-            Log.d(TAG, "Starting WiFi-aware periodic widget updates")
             
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -36,8 +35,6 @@ object WidgetWorkManager {
                 ExistingPeriodicWorkPolicy.REPLACE,
                 periodicWork
             )
-            
-            Log.d(TAG, "WiFi-aware periodic work enqueued successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start WiFi-aware periodic updates", e)
         }
@@ -46,9 +43,7 @@ object WidgetWorkManager {
     
     fun stopPeriodicUpdates(context: Context) {
         try {
-            Log.d(TAG, "Stopping WiFi-aware periodic widget updates")
             WorkManager.getInstance(context).cancelUniqueWork(WiFiAwareWidgetWorker.WORK_NAME)
-            Log.d(TAG, "WiFi-aware periodic work cancelled successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to stop WiFi-aware periodic updates", e)
         }
@@ -56,7 +51,6 @@ object WidgetWorkManager {
     
     fun triggerImmediateToggle(context: Context) {
         try {
-            Log.d(TAG, "Triggering immediate toggle")
             
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -76,8 +70,6 @@ object WidgetWorkManager {
                 ExistingWorkPolicy.REPLACE,
                 immediateWork
             )
-            
-            Log.d(TAG, "Immediate toggle work enqueued successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to trigger immediate toggle", e)
         }
@@ -85,7 +77,6 @@ object WidgetWorkManager {
     
     fun triggerImmediateRefresh(context: Context) {
         try {
-            Log.d(TAG, "Triggering immediate refresh")
             
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -105,8 +96,6 @@ object WidgetWorkManager {
                 ExistingWorkPolicy.REPLACE,
                 immediateWork
             )
-            
-            Log.d(TAG, "Immediate refresh work enqueued successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to trigger immediate refresh", e)
         }

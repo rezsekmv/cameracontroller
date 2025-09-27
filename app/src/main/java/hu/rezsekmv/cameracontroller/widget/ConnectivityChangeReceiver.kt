@@ -18,19 +18,15 @@ class ConnectivityChangeReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        Log.d(TAG, "Connectivity change received: ${intent.action}")
         
         when (intent.action) {
             ConnectivityManager.CONNECTIVITY_ACTION -> {
-                Log.d(TAG, "Network connectivity changed")
                 handleConnectivityChange(context)
             }
             WifiManager.NETWORK_STATE_CHANGED_ACTION -> {
-                Log.d(TAG, "WiFi network state changed")
                 handleConnectivityChange(context)
             }
             WifiManager.WIFI_STATE_CHANGED_ACTION -> {
-                Log.d(TAG, "WiFi state changed")
                 handleConnectivityChange(context)
             }
         }

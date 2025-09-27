@@ -33,7 +33,6 @@ class ImmediateWidgetWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
             val action = inputData.getString(KEY_ACTION) ?: ACTION_REFRESH
-            Log.d(TAG, "ImmediateWidgetWorker: Starting $action action")
             
             val repository = CameraRepository()
             val preferencesRepository = PreferencesRepository(applicationContext)

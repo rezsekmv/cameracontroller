@@ -32,7 +32,6 @@ class WiFiAwareWidgetWorker(
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "WiFiAwareWidgetWorker: Starting WiFi-aware widget update")
             
             val repository = CameraRepository()
             val preferencesRepository = PreferencesRepository(applicationContext)
@@ -42,11 +41,8 @@ class WiFiAwareWidgetWorker(
             
             // Check if we're on the target WiFi network
             if (!isOnTargetWiFi(settings.wifiName)) {
-                Log.d(TAG, "Not on target WiFi network - skipping widget update")
                 return@withContext Result.success()
             }
-            
-            Log.d(TAG, "On target WiFi network - proceeding with widget update")
             val endpoint = "http://${settings.username}:${settings.password}@${settings.ipAddress}"
             repository.updateEndpoint(endpoint)
             
