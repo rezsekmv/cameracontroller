@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">CameraController</string>
+    <string name="widget_description">Toggle camera motion detection</string>
+</resources>

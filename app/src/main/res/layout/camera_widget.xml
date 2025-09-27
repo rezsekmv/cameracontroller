@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Button xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_toggle_button"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:text="C"
+    android:textColor="#FFFFFF"
+    android:textSize="20sp"
+    android:textStyle="bold"
+    android:gravity="center"
+    android:background="@drawable/widget_button_background" />
