@@ -39,8 +39,7 @@ object WidgetWorkManager {
             Log.e(TAG, "Failed to start WiFi-aware periodic updates", e)
         }
     }
-    
-    
+
     fun stopPeriodicUpdates(context: Context) {
         try {
             WorkManager.getInstance(context).cancelUniqueWork(WiFiAwareWidgetWorker.WORK_NAME)
