@@ -22,6 +22,7 @@ data class CameraControlUiState(
     val getConfigPath: String = "/cgi-bin/configManager.cgi?action=getConfig&name=MotionDetect",
     val setConfigPath: String = "/cgi-bin/configManager.cgi?action=setConfig&MotionDetect[].Enable=",
     val timeoutSeconds: String = "2",
+    val wifiName: String = "",
     val motionDetectionStatus: MotionDetectionStatus = MotionDetectionStatus(null, false),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -51,6 +52,7 @@ class CameraControlViewModel(context: Context) : ViewModel() {
             getConfigPath = settings.getConfigPath,
             setConfigPath = settings.setConfigPath,
             timeoutSeconds = settings.timeoutSeconds,
+            wifiName = settings.wifiName,
             motionDetectionStatus = motionStatus,
             isLoading = loading,
             errorMessage = error
@@ -123,6 +125,13 @@ class CameraControlViewModel(context: Context) : ViewModel() {
         Log.d(TAG, "Updating timeout to: $timeout seconds")
         viewModelScope.launch {
             preferencesRepository.updateTimeoutSeconds(timeout)
+        }
+    }
+    
+    fun updateWifiName(wifiName: String) {
+        Log.d(TAG, "Updating WiFi name to: $wifiName")
+        viewModelScope.launch {
+            preferencesRepository.updateWifiName(wifiName)
         }
     }
 

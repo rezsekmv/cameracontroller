@@ -17,7 +17,8 @@ data class CameraSettings(
     val ipAddress: String,
     val getConfigPath: String,
     val setConfigPath: String,
-    val timeoutSeconds: String
+    val timeoutSeconds: String,
+    val wifiName: String
 )
 
 class PreferencesRepository(private val context: Context) {
@@ -29,6 +30,7 @@ class PreferencesRepository(private val context: Context) {
         private val GET_CONFIG_PATH_KEY = stringPreferencesKey("get_config_path")
         private val SET_CONFIG_PATH_KEY = stringPreferencesKey("set_config_path")
         private val TIMEOUT_SECONDS_KEY = stringPreferencesKey("timeout_seconds")
+        private val WIFI_NAME_KEY = stringPreferencesKey("wifi_name")
     }
     
     val cameraSettings: Flow<CameraSettings> = context.dataStore.data.map { preferences ->
@@ -38,7 +40,8 @@ class PreferencesRepository(private val context: Context) {
             ipAddress = preferences[IP_ADDRESS_KEY] ?: "192.168.1.100",
             getConfigPath = preferences[GET_CONFIG_PATH_KEY] ?: "/cgi-bin/configManager.cgi?action=getConfig&name=MotionDetect",
             setConfigPath = preferences[SET_CONFIG_PATH_KEY] ?: "/cgi-bin/configManager.cgi?action=setConfig&MotionDetect[].Enable=",
-            timeoutSeconds = preferences[TIMEOUT_SECONDS_KEY] ?: "2"
+            timeoutSeconds = preferences[TIMEOUT_SECONDS_KEY] ?: "2",
+            wifiName = preferences[WIFI_NAME_KEY] ?: ""
         )
     }
     
@@ -75,6 +78,12 @@ class PreferencesRepository(private val context: Context) {
     suspend fun updateTimeoutSeconds(timeout: String) {
         context.dataStore.edit { preferences ->
             preferences[TIMEOUT_SECONDS_KEY] = timeout
+        }
+    }
+    
+    suspend fun updateWifiName(wifiName: String) {
+        context.dataStore.edit { preferences ->
+            preferences[WIFI_NAME_KEY] = wifiName
         }
     }
 }

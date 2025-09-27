@@ -3,6 +3,7 @@ package hu.rezsekmv.cameracontroller.widget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.util.Log
@@ -16,6 +17,46 @@ class CameraWidgetProvider : AppWidgetProvider() {
         private const val TAG = "CameraWidgetProvider"
         const val ACTION_TOGGLE_MOTION = "hu.rezsekmv.cameracontroller.TOGGLE_MOTION"
         const val ACTION_REFRESH_WIDGET = "hu.rezsekmv.cameracontroller.REFRESH_WIDGET"
+        
+        fun updateWidgetWithState(context: Context, backgroundRes: Int, isMotionEnabled: Boolean?) {
+            try {
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val componentName = ComponentName(context, CameraWidgetProvider::class.java)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                
+                if (appWidgetIds.isNotEmpty()) {
+                    val views = RemoteViews(context.packageName, R.layout.camera_widget)
+                    
+                    // Set background
+                    views.setInt(R.id.widget_container, "setBackgroundResource", backgroundRes)
+                    
+                    // Set click intent based on state
+                    val intent = Intent(context, CameraWidgetProvider::class.java)
+                    val action = if (isMotionEnabled == null) {
+                        // Gray state (unknown) - use refresh
+                        ACTION_REFRESH_WIDGET
+                    } else {
+                        // Known state (red/green) - use toggle
+                        ACTION_TOGGLE_MOTION
+                    }
+                    intent.action = action
+                    
+                    // Use first widget ID for the pending intent
+                    val pendingIntent = PendingIntent.getBroadcast(
+                        context, appWidgetIds[0], intent, 
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                    views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+                    
+                    appWidgetManager.updateAppWidget(appWidgetIds, views)
+                    Log.d(TAG, "Widget updated with background: $backgroundRes, action: $action")
+                } else {
+                    Log.d(TAG, "No widgets found to update")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update widget with state", e)
+            }
+        }
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
@@ -28,39 +69,35 @@ class CameraWidgetProvider : AppWidgetProvider() {
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        Log.d(TAG, "Widget enabled - registering receivers")
-        
-        // Start the widget service when first widget is added
-        val intent = Intent(context, CameraWidgetService::class.java)
-        intent.action = CameraWidgetService.ACTION_REGISTER_RECEIVERS
-        context.startForegroundService(intent)
+        Log.d(TAG, "Widget enabled - starting WiFi-aware periodic updates")
+        WidgetWorkManager.startPeriodicUpdates(context)
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        Log.d(TAG, "Widget disabled - unregistering receivers")
-        
-        // Stop the widget service when last widget is removed
-        val intent = Intent(context, CameraWidgetService::class.java)
-        intent.action = CameraWidgetService.ACTION_UNREGISTER_RECEIVERS
-        context.startService(intent)
+        Log.d(TAG, "Widget disabled - stopping WiFi-aware periodic updates")
+        WidgetWorkManager.stopPeriodicUpdates(context)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         
+        Log.d(TAG, "onReceive called with action: ${intent.action}")
+        
         when (intent.action) {
             ACTION_TOGGLE_MOTION -> {
-                Log.d(TAG, "Toggle motion action received")
-                val serviceIntent = Intent(context, CameraWidgetService::class.java)
-                serviceIntent.action = CameraWidgetService.ACTION_TOGGLE_MOTION
-                context.startForegroundService(serviceIntent)
+                Log.d(TAG, "Toggle motion action received - using WorkManager")
+                WidgetWorkManager.triggerImmediateToggle(context)
             }
             ACTION_REFRESH_WIDGET -> {
-                Log.d(TAG, "Refresh widget action received")
-                val serviceIntent = Intent(context, CameraWidgetService::class.java)
-                serviceIntent.action = CameraWidgetService.ACTION_REFRESH_STATUS
-                context.startForegroundService(serviceIntent)
+                Log.d(TAG, "Refresh widget action received - using WorkManager")
+                WidgetWorkManager.triggerImmediateRefresh(context)
+            }
+            Intent.ACTION_BOOT_COMPLETED -> {
+                Log.d(TAG, "Device booted - no automatic refresh")
+            }
+            else -> {
+                Log.d(TAG, "Unknown action received: ${intent.action}")
             }
         }
     }
@@ -70,31 +107,25 @@ class CameraWidgetProvider : AppWidgetProvider() {
         
         val views = RemoteViews(context.packageName, R.layout.camera_widget)
         
-        // Set up click intent for toggle button
-        val toggleIntent = Intent(context, CameraWidgetProvider::class.java)
-        toggleIntent.action = ACTION_TOGGLE_MOTION
-        val togglePendingIntent = PendingIntent.getBroadcast(
-            context, 0, toggleIntent, 
+        // Set up click intent - default to refresh for initial gray state
+        val refreshIntent = Intent(context, CameraWidgetProvider::class.java)
+        refreshIntent.action = ACTION_REFRESH_WIDGET
+        refreshIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        val refreshPendingIntent = PendingIntent.getBroadcast(
+            context, appWidgetId, refreshIntent, 
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        views.setOnClickPendingIntent(R.id.widget_toggle_button, togglePendingIntent)
+        views.setOnClickPendingIntent(R.id.widget_container, refreshPendingIntent)
         
-        // Set up click intent for opening main app (long press)
-        val appIntent = Intent(context, MainActivity::class.java)
-        val appPendingIntent = PendingIntent.getActivity(
-            context, 0, appIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        Log.d(TAG, "Set refresh intent for widget button (initial gray state)")
         
-        // Initial state - always show "C"
-        views.setTextViewText(R.id.widget_toggle_button, "C")
-        views.setInt(R.id.widget_toggle_button, "setBackgroundResource", R.drawable.widget_button_gray)
+        // Initial state - show camera icon with gray background
+        views.setInt(R.id.widget_container, "setBackgroundResource", R.drawable.widget_button_gray)
         
         appWidgetManager.updateAppWidget(appWidgetId, views)
         
-        // Trigger initial refresh
-        val refreshIntent = Intent(context, CameraWidgetService::class.java)
-        refreshIntent.action = CameraWidgetService.ACTION_REFRESH_STATUS
-        context.startForegroundService(refreshIntent)
+        // Don't start service here - Android restricts background service starts
+        // Service will be started when widget is actually used (tapped)
+        Log.d(TAG, "Widget updated - service will start on first use")
     }
 }

@@ -1,11 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Button xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_toggle_button"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:text="C"
-    android:textColor="#FFFFFF"
-    android:textSize="20sp"
-    android:textStyle="bold"
-    android:gravity="center"
-    android:background="@drawable/widget_button_background" />
+    android:background="@drawable/widget_button_background">
+    
+    <ImageView
+        android:id="@+id/widget_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="center"
+        android:src="@drawable/ic_camera_widget"
+        android:scaleType="centerInside" />
+        
+</FrameLayout>

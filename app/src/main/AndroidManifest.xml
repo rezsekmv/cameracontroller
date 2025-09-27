@@ -4,9 +4,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -40,10 +44,7 @@
             <intent-filter>
                 <action android:name="hu.rezsekmv.cameracontroller.TOGGLE_MOTION" />
                 <action android:name="hu.rezsekmv.cameracontroller.REFRESH_WIDGET" />
-            </intent-filter>
-            <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.USER_PRESENT" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider"
                 android:resource="@xml/camera_widget_info" />
@@ -53,6 +54,19 @@
         <service android:name=".widget.CameraWidgetService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Connectivity Change Receiver -->
+        <receiver android:name=".widget.ConnectivityChangeReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+                <action android:name="android.net.wifi.STATE_CHANGE" />
+                <action android:name="android.net.wifi.WIFI_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+
 
     </application>
 

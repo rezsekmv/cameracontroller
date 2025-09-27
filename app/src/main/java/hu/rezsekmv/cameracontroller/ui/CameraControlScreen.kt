@@ -65,6 +65,7 @@ fun CameraControlScreen(
     var localGetConfigPath by remember { mutableStateOf(uiState.getConfigPath) }
     var localSetConfigPath by remember { mutableStateOf(uiState.setConfigPath) }
     var localTimeoutSeconds by remember { mutableStateOf(uiState.timeoutSeconds) }
+    var localWifiName by remember { mutableStateOf(uiState.wifiName) }
     
     // Update local state when uiState changes (from DataStore)
     LaunchedEffect(uiState.username) { localUsername = uiState.username }
@@ -73,10 +74,9 @@ fun CameraControlScreen(
     LaunchedEffect(uiState.getConfigPath) { localGetConfigPath = uiState.getConfigPath }
     LaunchedEffect(uiState.setConfigPath) { localSetConfigPath = uiState.setConfigPath }
     LaunchedEffect(uiState.timeoutSeconds) { localTimeoutSeconds = uiState.timeoutSeconds }
+    LaunchedEffect(uiState.wifiName) { localWifiName = uiState.wifiName }
 
-    LaunchedEffect(Unit) {
-        viewModel.refreshMotionDetectionStatus()
-    }
+    // Removed automatic API call on startup - user can manually refresh if needed
     
     // Show toast for errors
     LaunchedEffect(uiState.errorMessage) {
@@ -187,10 +187,9 @@ fun CameraControlScreen(
             value = localIpAddress,
             onValueChange = { localIpAddress = it },
             label = { Text("IP Address") },
-            placeholder = { Text("192.168.1.100") },
+            placeholder = { Text("192.168.1.100:8081") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             interactionSource = ipAddressInteractionSource
         )
 
@@ -260,6 +259,27 @@ fun CameraControlScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        val wifiNameInteractionSource = remember { MutableInteractionSource() }
+        val isWifiNameFocused by wifiNameInteractionSource.collectIsFocusedAsState()
+        
+        LaunchedEffect(isWifiNameFocused) {
+            if (!isWifiNameFocused) {
+                saveFieldOnFocusOut(localWifiName, uiState.wifiName, viewModel::updateWifiName)
+            }
+        }
+        
+        OutlinedTextField(
+            value = localWifiName,
+            onValueChange = { localWifiName = it },
+            label = { Text("WiFi Network Name (starts with)") },
+            placeholder = { Text("MyHome") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            interactionSource = wifiNameInteractionSource
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Text(
             text = "Endpoint: ${uiState.apiEndpoint}",
             style = MaterialTheme.typography.bodySmall,
@@ -282,6 +302,27 @@ fun CameraControlScreen(
         ) {
             Text("Refresh Status")
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = { 
+                focusManager.clearFocus()
+                // Test notification system
+                hu.rezsekmv.cameracontroller.widget.MotionNotificationManager.sendTestNotification(context)
+                Toast.makeText(context, "Sent test notification", Toast.LENGTH_SHORT).show()
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error
+            )
+        ) {
+            Text("Test Notification")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+
 
         Spacer(modifier = Modifier.height(32.dp))
 

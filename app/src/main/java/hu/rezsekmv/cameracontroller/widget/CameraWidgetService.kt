@@ -60,12 +60,7 @@ class CameraWidgetService : Service() {
         when (intent?.action) {
             ACTION_REGISTER_RECEIVERS -> {
                 registerBroadcastReceivers()
-                // Start foreground briefly to register receivers, then stop foreground
-                startForeground(FOREGROUND_NOTIFICATION_ID, createForegroundNotification())
-                serviceScope.launch {
-                    kotlinx.coroutines.delay(1000) // Brief delay to ensure registration
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                }
+                stopSelf()
             }
             ACTION_UNREGISTER_RECEIVERS -> {
                 unregisterBroadcastReceivers()
@@ -73,9 +68,19 @@ class CameraWidgetService : Service() {
             }
             ACTION_REFRESH_STATUS -> {
                 refreshCameraStatus()
+                // Stop service after refresh
+                serviceScope.launch {
+                    kotlinx.coroutines.delay(5000) // Allow more time for refresh
+                    stopSelf()
+                }
             }
             ACTION_TOGGLE_MOTION -> {
                 toggleMotionDetection()
+                // Stop service after toggle
+                serviceScope.launch {
+                    kotlinx.coroutines.delay(3000) // Allow time for toggle operation
+                    stopSelf()
+                }
             }
         }
         
@@ -101,6 +106,13 @@ class CameraWidgetService : Service() {
                         Log.d(TAG, "Device unlocked - refreshing widget and checking motion status")
                         refreshCameraStatusAndNotify()
                     }
+                    Intent.ACTION_SCREEN_ON -> {
+                        Log.d(TAG, "Screen turned on - refreshing widget")
+                        refreshCameraStatus()
+                    }
+                    Intent.ACTION_SCREEN_OFF -> {
+                        Log.d(TAG, "Screen turned off - no action needed")
+                    }
                 }
             }
         }
@@ -108,6 +120,8 @@ class CameraWidgetService : Service() {
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_BOOT_COMPLETED)
             addAction(Intent.ACTION_USER_PRESENT)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
         }
         
         registerReceiver(broadcastReceiver, filter)
@@ -134,9 +148,6 @@ class CameraWidgetService : Service() {
     private fun performRefresh(showNotification: Boolean) {
         serviceScope.launch {
             try {
-                // Update widget to show loading state
-                updateWidget("⏳ Checking...", "Refreshing...")
-                
                 // Load settings and configure repository
                 val settings = preferencesRepository.cameraSettings.first()
                 val endpoint = "http://${settings.username}:${settings.password}@${settings.ipAddress}"
@@ -188,17 +199,42 @@ class CameraWidgetService : Service() {
             try {
                 val currentStatus = lastStatus
                 if (currentStatus?.isEnabled == null) {
-                    Log.w(TAG, "Cannot toggle - current status unknown")
-                    updateWidget("❌ Unknown", "Refresh needed")
-                    return@launch
+                    Log.w(TAG, "Cannot toggle - current status unknown, refreshing first")
+                    // Don't show loading state, just refresh silently
+                    
+                    // First refresh the status
+                    val settings = preferencesRepository.cameraSettings.first()
+                    val endpoint = "http://${settings.username}:${settings.password}@${settings.ipAddress}"
+                    repository.updateEndpoint(endpoint)
+                    
+                    val timeoutInt = settings.timeoutSeconds.toIntOrNull() ?: 2
+                    repository.updateConfiguration(
+                        getConfigPath = settings.getConfigPath,
+                        setConfigPath = settings.setConfigPath,
+                        timeoutSeconds = timeoutInt
+                    )
+                    
+                    val refreshedStatus = repository.getMotionDetectionStatus()
+                    lastStatus = refreshedStatus
+                    
+                    if (refreshedStatus.isEnabled == null) {
+                        Log.e(TAG, "Still cannot determine status after refresh")
+                        updateWidget("❌ Failed", "Connection error")
+                        return@launch
+                    }
+                    
+                    Log.d(TAG, "Status refreshed: enabled=${refreshedStatus.isEnabled}")
                 }
                 
-                // Update widget to show toggling state
-                val newState = !currentStatus.isEnabled
-                val toggleText = if (newState) "🔴 Turning ON..." else "🟢 Turning OFF..."
-                updateWidget(toggleText, "Please wait...")
+                val statusToUse = lastStatus ?: return@launch
                 
-                // Load settings and configure repository
+                // Update widget to show toggling state
+                val newState = !(statusToUse.isEnabled ?: false)
+                val toggleText = if (newState) "🔴 Turning ON..." else "🟢 Turning OFF..."
+                // Don't update widget here - keep current color during toggle
+                Log.d(TAG, "Starting toggle to: $newState")
+                
+                // Load settings and configure repository (if not already done)
                 val settings = preferencesRepository.cameraSettings.first()
                 val endpoint = "http://${settings.username}:${settings.password}@${settings.ipAddress}"
                 repository.updateEndpoint(endpoint)
@@ -215,10 +251,13 @@ class CameraWidgetService : Service() {
                 
                 when (result) {
                     is ApiResult.Success -> {
-                        Log.d(TAG, "Toggle successful, refreshing status")
-                        // Add a small delay before refresh to allow camera to process the change
-                        kotlinx.coroutines.delay(500)
-                        refreshCameraStatus()
+                        Log.d(TAG, "Toggle successful, updating to final state")
+                        // Update directly to the expected final state without showing loading
+                        val finalText = if (newState) "🔴 Motion ON" else "🟢 Motion OFF"
+                        updateWidget(finalText, "Last: just now")
+                        
+                        // Update lastStatus to reflect the new state
+                        lastStatus = MotionDetectionStatus(newState, true, null)
                     }
                     is ApiResult.Error -> {
                         Log.e(TAG, "Toggle failed: ${result.message}")
@@ -253,9 +292,6 @@ class CameraWidgetService : Service() {
         
         val views = RemoteViews(packageName, R.layout.camera_widget)
         
-        // Always show "C" text
-        views.setTextViewText(R.id.widget_toggle_button, "C")
-        
         // Set background color based on status
         val backgroundRes = when {
             buttonText.contains("🔴") || buttonText.contains("ON") -> {
@@ -266,10 +302,6 @@ class CameraWidgetService : Service() {
                 Log.d(TAG, "Setting widget color to GREEN (Motion OFF)")
                 R.drawable.widget_button_green
             }
-            buttonText.contains("⏳") || buttonText.contains("Checking") || buttonText.contains("Turning") -> {
-                Log.d(TAG, "Setting widget color to ORANGE (Loading)")
-                R.drawable.widget_button_orange
-            }
             else -> {
                 Log.d(TAG, "Setting widget color to GRAY (Failed/Error/Unknown) - buttonText: '$buttonText'")
                 R.drawable.widget_button_gray // Failed, Error, Unknown states
@@ -279,11 +311,11 @@ class CameraWidgetService : Service() {
         Log.d(TAG, "Widget update - Text: '$buttonText', Color: ${when(backgroundRes) {
             R.drawable.widget_button_red -> "RED"
             R.drawable.widget_button_green -> "GREEN" 
-            R.drawable.widget_button_orange -> "ORANGE"
             else -> "GRAY"
         }}, AppWidgetIds: ${appWidgetIds.contentToString()}")
         
-        views.setInt(R.id.widget_toggle_button, "setBackgroundResource", backgroundRes)
+        // Update the FrameLayout background
+        views.setInt(R.id.widget_container, "setBackgroundResource", backgroundRes)
         
         appWidgetManager.updateAppWidget(appWidgetIds, views)
     }
@@ -306,42 +338,60 @@ class CameraWidgetService : Service() {
     }
 
     private fun createNotificationChannel() {
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        
-        // Foreground service channel (low importance, silent)
-        val serviceChannel = NotificationChannel(
-            FOREGROUND_CHANNEL_ID,
-            "Camera Widget Service",
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Background service for camera widget"
-            setShowBadge(false)
-            setSound(null, null)
+        try {
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            
+            // Foreground service channel (low importance, silent)
+            val serviceChannel = NotificationChannel(
+                FOREGROUND_CHANNEL_ID,
+                "Camera Widget Service",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Background service for camera widget"
+                setShowBadge(false)
+                setSound(null, null)
+            }
+            
+            // Motion alert channel (default importance, can make sound)
+            val alertChannel = NotificationChannel(
+                ALERT_CHANNEL_ID,
+                "Motion Detection Alerts",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Alerts when motion detection is active"
+                setShowBadge(true)
+            }
+            
+            notificationManager.createNotificationChannel(serviceChannel)
+            notificationManager.createNotificationChannel(alertChannel)
+            Log.d(TAG, "Notification channels created successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create notification channels", e)
         }
-        
-        // Motion alert channel (default importance, can make sound)
-        val alertChannel = NotificationChannel(
-            ALERT_CHANNEL_ID,
-            "Motion Detection Alerts",
-            NotificationManager.IMPORTANCE_DEFAULT
-        ).apply {
-            description = "Alerts when motion detection is active"
-            setShowBadge(true)
-        }
-        
-        notificationManager.createNotificationChannel(serviceChannel)
-        notificationManager.createNotificationChannel(alertChannel)
     }
 
     private fun createForegroundNotification(): Notification {
-        return NotificationCompat.Builder(this, FOREGROUND_CHANNEL_ID)
-            .setContentTitle("Camera Widget")
-            .setContentText("Initializing...")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setOngoing(true)
-            .setSilent(true)
-            .setShowWhen(false)
-            .build()
+        return try {
+            NotificationCompat.Builder(this, FOREGROUND_CHANNEL_ID)
+                .setContentTitle("Camera Widget")
+                .setContentText("Initializing...")
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setOngoing(true)
+                .setSilent(true)
+                .setShowWhen(false)
+                .build()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create foreground notification with channel, using fallback", e)
+            // Fallback notification without channel
+            NotificationCompat.Builder(this)
+                .setContentTitle("Camera Widget")
+                .setContentText("Initializing...")
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setOngoing(true)
+                .setSilent(true)
+                .setShowWhen(false)
+                .build()
+        }
     }
 
     override fun onDestroy() {
