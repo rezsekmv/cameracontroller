@@ -1,6 +1,7 @@
 package hu.rezsekmv.cameracontroller.ui
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,6 +9,8 @@ import hu.rezsekmv.cameracontroller.data.ApiResult
 import hu.rezsekmv.cameracontroller.data.CameraRepository
 import hu.rezsekmv.cameracontroller.data.MotionDetectionStatus
 import hu.rezsekmv.cameracontroller.data.PreferencesRepository
+import hu.rezsekmv.cameracontroller.service.WidgetAutoRefreshService
+import hu.rezsekmv.cameracontroller.widget.CameraWidgetProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +37,7 @@ data class CameraControlUiState(
 class CameraControlViewModel(context: Context) : ViewModel() {
     private val repository = CameraRepository()
     private val preferencesRepository = PreferencesRepository(context)
+    private val appContext = context.applicationContext
     
     private val _motionDetectionStatus = MutableStateFlow(MotionDetectionStatus(null, false))
     private val _isLoading = MutableStateFlow(false)
@@ -84,6 +88,10 @@ class CameraControlViewModel(context: Context) : ViewModel() {
             setConfigPath = settings.setConfigPath,
             timeoutSeconds = timeoutInt
         )
+        
+        // Initialize widget with the same endpoint
+        CameraWidgetProvider.initializeRepository(endpoint)
+        Log.d(TAG, "Widget initialized with endpoint: $endpoint")
     }
 
     fun updateUsername(username: String) {
@@ -152,6 +160,9 @@ class CameraControlViewModel(context: Context) : ViewModel() {
                 Log.e(TAG, "Camera not available, setting error message: ${status.errorMessage}")
             }
             
+            // Refresh widget with new status
+            CameraWidgetProvider.refreshAllWidgets(appContext)
+            
             Log.d(TAG, "UI state updated with new motion detection status")
         }
     }
@@ -192,5 +203,21 @@ class CameraControlViewModel(context: Context) : ViewModel() {
 
     fun clearError() {
         _errorMessage.value = null
+    }
+    
+    fun startAutoRefreshService() {
+        Log.d(TAG, "Starting auto refresh service")
+        val intent = Intent(appContext, WidgetAutoRefreshService::class.java).apply {
+            action = WidgetAutoRefreshService.ACTION_START_SERVICE
+        }
+        appContext.startForegroundService(intent)
+    }
+    
+    fun stopAutoRefreshService() {
+        Log.d(TAG, "Stopping auto refresh service")
+        val intent = Intent(appContext, WidgetAutoRefreshService::class.java).apply {
+            action = WidgetAutoRefreshService.ACTION_STOP_SERVICE
+        }
+        appContext.startService(intent)
     }
 }

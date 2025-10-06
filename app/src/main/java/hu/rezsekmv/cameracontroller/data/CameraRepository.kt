@@ -1,16 +1,14 @@
 package hu.rezsekmv.cameracontroller.data
 
 import android.util.Log
+import hu.rezsekmv.cameracontroller.util.DigestAuthUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
 import retrofit2.Retrofit
 import retrofit2.converter.scalars.ScalarsConverterFactory
 import java.net.SocketTimeoutException
-import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -28,10 +26,12 @@ sealed class ApiResult<T> {
 class CameraRepository {
     private var apiService: CameraApiService? = null
     private var currentEndpoint: String = ""
-    private var getConfigPath: String = "/cgi-bin/configManager.cgi?action=getConfig&name=MotionDetect"
-    private var setConfigPath: String = "/cgi-bin/configManager.cgi?action=setConfig&MotionDetect[].Enable="
+    private var getConfigPath: String =
+        "/cgi-bin/configManager.cgi?action=getConfig&name=MotionDetect"
+    private var setConfigPath: String =
+        "/cgi-bin/configManager.cgi?action=setConfig&MotionDetect[].Enable="
     private var timeoutSeconds: Int = 2
-    
+
     companion object {
         private const val TAG = "CameraRepository"
     }
@@ -42,7 +42,7 @@ class CameraRepository {
             apiService = createApiService(endpoint)
         }
     }
-    
+
     fun updateConfiguration(getConfigPath: String, setConfigPath: String, timeoutSeconds: Int) {
         this.getConfigPath = getConfigPath
         this.setConfigPath = setConfigPath
@@ -61,13 +61,13 @@ class CameraRepository {
                 Log.e(TAG, "Invalid endpoint format - missing credentials: $endpoint")
                 return null
             }
-            
+
             val credentials = urlParts[0].split(":")
             if (credentials.size != 2) {
                 Log.e(TAG, "Invalid credentials format: ${urlParts[0]}")
                 return null
             }
-            
+
             val baseUrl = "http://${urlParts[1]}"
             val username = credentials[0]
             val password = credentials[1]
@@ -77,11 +77,16 @@ class CameraRepository {
                     if (response.request.header("Authorization") != null) {
                         return@authenticator null
                     }
-                    
+
                     val authHeader = response.header("WWW-Authenticate")
-                    
-                    if (authHeader != null && authHeader.contains("Digest")) {
-                        val digestAuth = createDigestAuth(authHeader, username, password, response.request)
+
+                    if (DigestAuthUtil.isDigestChallenge(authHeader)) {
+                        val digestAuth = DigestAuthUtil.createDigestAuth(
+                            authHeader!!,
+                            username,
+                            password,
+                            response.request
+                        )
                         response.request.newBuilder()
                             .header("Authorization", digestAuth)
                             .build()
@@ -115,11 +120,15 @@ class CameraRepository {
             try {
                 val service = apiService ?: run {
                     Log.e(TAG, "API service is null - cannot get motion detection status")
-                    return@withContext MotionDetectionStatus(null, false, "Camera service not initialized")
+                    return@withContext MotionDetectionStatus(
+                        null,
+                        false,
+                        "Camera service not initialized"
+                    )
                 }
-                
+
                 val response = service.getRequest(getConfigPath)
-                
+
                 if (response.isSuccessful) {
                     val body = response.body()
                     val isEnabled = body?.let { parseMotionDetectionStatus(it) }
@@ -133,7 +142,10 @@ class CameraRepository {
                         503 -> "Camera service unavailable - camera may be busy"
                         else -> "Camera responded with error ${response.code()}: ${response.message()}"
                     }
-                    Log.e(TAG, "API call failed with code: ${response.code()}, message: ${response.message()}")
+                    Log.e(
+                        TAG,
+                        "API call failed with code: ${response.code()}, message: ${response.message()}"
+                    )
                     MotionDetectionStatus(null, false, errorMessage)
                 }
             } catch (e: Exception) {
@@ -142,18 +154,22 @@ class CameraRepository {
                         Log.w(TAG, "Timeout during getMotionDetectionStatus - camera unavailable")
                         "Connection timeout - camera not responding (check IP address and network)"
                     }
+
                     is java.net.UnknownHostException -> {
                         Log.e(TAG, "Unknown host during getMotionDetectionStatus", e)
                         "Camera not found - check IP address and network connection"
                     }
+
                     is java.net.ConnectException -> {
                         Log.e(TAG, "Connection refused during getMotionDetectionStatus", e)
                         "Connection refused - camera may be offline or wrong port"
                     }
+
                     is javax.net.ssl.SSLException -> {
                         Log.e(TAG, "SSL error during getMotionDetectionStatus", e)
                         "SSL/TLS error - check camera security settings"
                     }
+
                     else -> {
                         Log.e(TAG, "Exception during getMotionDetectionStatus", e)
                         "Network error: ${e.message ?: "Unknown error"}"
@@ -171,10 +187,10 @@ class CameraRepository {
                     Log.e(TAG, "API service is null - cannot set motion detection status")
                     return@withContext ApiResult.Error("Camera service not initialized")
                 }
-                
+
                 val fullPath = "$setConfigPath$enable"
                 val response = service.getRequest(fullPath)
-                
+
                 if (response.isSuccessful) {
                     ApiResult.Success(true)
                 } else {
@@ -186,7 +202,10 @@ class CameraRepository {
                         503 -> "Camera service unavailable - camera may be busy"
                         else -> "Camera responded with error ${response.code()}: ${response.message()}"
                     }
-                    Log.e(TAG, "Failed to set motion detection - code: ${response.code()}, message: ${response.message()}")
+                    Log.e(
+                        TAG,
+                        "Failed to set motion detection - code: ${response.code()}, message: ${response.message()}"
+                    )
                     ApiResult.Error(errorMessage)
                 }
             } catch (e: Exception) {
@@ -195,18 +214,22 @@ class CameraRepository {
                         Log.w(TAG, "Timeout during setMotionDetectionStatus - camera unavailable")
                         "Connection timeout - camera not responding (check IP address and network)"
                     }
+
                     is java.net.UnknownHostException -> {
                         Log.e(TAG, "Unknown host during setMotionDetectionStatus", e)
                         "Camera not found - check IP address and network connection"
                     }
+
                     is java.net.ConnectException -> {
                         Log.e(TAG, "Connection refused during setMotionDetectionStatus", e)
                         "Connection refused - camera may be offline or wrong port"
                     }
+
                     is javax.net.ssl.SSLException -> {
                         Log.e(TAG, "SSL error during setMotionDetectionStatus", e)
                         "SSL/TLS error - check camera security settings"
                     }
+
                     else -> {
                         Log.e(TAG, "Exception during setMotionDetectionStatus", e)
                         "Network error: ${e.message ?: "Unknown error"}"
@@ -220,7 +243,7 @@ class CameraRepository {
     private fun parseMotionDetectionStatus(responseBody: String): Boolean? {
         return try {
             val lines = responseBody.split("\n")
-            
+
             for (line in lines) {
                 Log.v(TAG, "Checking line: $line")
                 if (line.startsWith("table.MotionDetect[0].Enable=")) {
@@ -238,53 +261,4 @@ class CameraRepository {
         }
     }
 
-    private fun createDigestAuth(authHeader: String, username: String, password: String, request: Request): String {
-        val params = parseDigestHeader(authHeader)
-        val realm = params["realm"] ?: ""
-        val nonce = params["nonce"] ?: ""
-        val qop = params["qop"]
-        val algorithm = params["algorithm"] ?: "MD5"
-        
-        val uri = request.url.encodedPath + if (request.url.encodedQuery != null) "?${request.url.encodedQuery}" else ""
-        val method = request.method
-        
-        val ha1 = md5("$username:$realm:$password")
-        val ha2 = md5("$method:$uri")
-        
-        val response = if (qop == "auth") {
-            val nc = "00000001"
-            val cnonce = "0a4f113b"
-            md5("$ha1:$nonce:$nc:$cnonce:$qop:$ha2")
-        } else {
-            md5("$ha1:$nonce:$ha2")
-        }
-        
-        return buildString {
-            append("Digest ")
-            append("username=\"$username\", ")
-            append("realm=\"$realm\", ")
-            append("nonce=\"$nonce\", ")
-            append("uri=\"$uri\", ")
-            append("algorithm=\"$algorithm\", ")
-            append("response=\"$response\"")
-            if (qop == "auth") {
-                append(", qop=\"auth\", nc=00000001, cnonce=\"0a4f113b\"")
-            }
-        }
-    }
-    
-    private fun parseDigestHeader(header: String): Map<String, String> {
-        val params = mutableMapOf<String, String>()
-        val regex = """(\w+)="([^"]+)"""".toRegex()
-        regex.findAll(header).forEach { match ->
-            params[match.groupValues[1]] = match.groupValues[2]
-        }
-        return params
-    }
-    
-    private fun md5(input: String): String {
-        val md = MessageDigest.getInstance("MD5")
-        val digest = md.digest(input.toByteArray())
-        return digest.joinToString("") { "%02x".format(it) }
-    }
 }

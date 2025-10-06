@@ -7,7 +7,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "camera_settings")
 
@@ -84,6 +86,12 @@ class PreferencesRepository(private val context: Context) {
     suspend fun updateWifiName(wifiName: String) {
         context.dataStore.edit { preferences ->
             preferences[WIFI_NAME_KEY] = wifiName
+        }
+    }
+    
+    fun getWifiName(): String {
+        return runBlocking {
+            cameraSettings.first().wifiName
         }
     }
 }
