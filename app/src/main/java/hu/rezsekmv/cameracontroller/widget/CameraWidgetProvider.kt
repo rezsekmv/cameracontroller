@@ -135,13 +135,12 @@ class CameraWidgetProvider : AppWidgetProvider() {
     }
     
     private fun handleWidgetClick(context: Context, appWidgetId: Int) {
+        Log.d(TAG, "handleWidgetClick")
         val repository = cameraRepository
         val endpoint = cameraEndpoint
         
         if (repository == null || endpoint == null) {
-            Log.w(TAG, "Repository or endpoint not initialized, just refreshing widget")
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            refreshWidget(context, appWidgetManager, appWidgetId)
+            Log.w(TAG, "Repository or endpoint not initialized, cannot handle click")
             return
         }
         
@@ -149,17 +148,15 @@ class CameraWidgetProvider : AppWidgetProvider() {
         
         scope.launch {
             try {
-                // First get current status
-                val currentStatus = repository.getMotionDetectionStatus()
-                
-                if (currentStatus.isEnabled == null) {
+                val currentState = lastMotionState
+                if (currentState == null) {
                     // Unknown state - just refresh
                     Log.d(TAG, "Unknown state, refreshing widget")
                     refreshWidget(context, appWidgetManager, appWidgetId)
                 } else {
                     // Known state - toggle and then refresh
-                    Log.d(TAG, "Toggling motion detection from ${currentStatus.isEnabled} to ${!currentStatus.isEnabled}")
-                    val toggleResult = repository.setMotionDetectionStatus(!currentStatus.isEnabled)
+                    Log.d(TAG, "Toggling motion detection from ${currentState}")
+                    val toggleResult = repository.setMotionDetectionStatus(!currentState)
                     
                     if (toggleResult is hu.rezsekmv.cameracontroller.data.ApiResult.Success) {
                         // Toggle successful, refresh to get updated status
