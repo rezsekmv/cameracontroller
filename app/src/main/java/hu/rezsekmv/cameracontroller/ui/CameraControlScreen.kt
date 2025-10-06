@@ -308,21 +308,30 @@ fun CameraControlScreen(
         Button(
             onClick = { 
                 focusManager.clearFocus()
-                // Test notification system
-                hu.rezsekmv.cameracontroller.widget.MotionNotificationManager.sendTestNotification(context)
-                Toast.makeText(context, "Sent test notification", Toast.LENGTH_SHORT).show()
+                viewModel.startAutoRefreshService() 
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Text("Start Auto Refresh on Unlock")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = { 
+                focusManager.clearFocus()
+                viewModel.stopAutoRefreshService() 
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.error
             )
         ) {
-            Text("Test Notification")
+            Text("Stop Auto Refresh")
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-
 
         Spacer(modifier = Modifier.height(32.dp))
 
