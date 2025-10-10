@@ -65,7 +65,7 @@ fun CameraControlScreen(
     var localGetConfigPath by remember { mutableStateOf(uiState.getConfigPath) }
     var localSetConfigPath by remember { mutableStateOf(uiState.setConfigPath) }
     var localTimeoutSeconds by remember { mutableStateOf(uiState.timeoutSeconds) }
-    var localWifiName by remember { mutableStateOf(uiState.wifiName) }
+    var localGatewayIp by remember { mutableStateOf(uiState.gatewayIp) }
     
     // Update local state when uiState changes (from DataStore)
     LaunchedEffect(uiState.username) { localUsername = uiState.username }
@@ -74,7 +74,7 @@ fun CameraControlScreen(
     LaunchedEffect(uiState.getConfigPath) { localGetConfigPath = uiState.getConfigPath }
     LaunchedEffect(uiState.setConfigPath) { localSetConfigPath = uiState.setConfigPath }
     LaunchedEffect(uiState.timeoutSeconds) { localTimeoutSeconds = uiState.timeoutSeconds }
-    LaunchedEffect(uiState.wifiName) { localWifiName = uiState.wifiName }
+    LaunchedEffect(uiState.gatewayIp) { localGatewayIp = uiState.gatewayIp }
 
     // Removed automatic API call on startup - user can manually refresh if needed
     
@@ -259,23 +259,23 @@ fun CameraControlScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        val wifiNameInteractionSource = remember { MutableInteractionSource() }
-        val isWifiNameFocused by wifiNameInteractionSource.collectIsFocusedAsState()
+        val gatewayIpInteractionSource = remember { MutableInteractionSource() }
+        val isGatewayIpFocused by gatewayIpInteractionSource.collectIsFocusedAsState()
         
-        LaunchedEffect(isWifiNameFocused) {
-            if (!isWifiNameFocused) {
-                saveFieldOnFocusOut(localWifiName, uiState.wifiName, viewModel::updateWifiName)
+        LaunchedEffect(isGatewayIpFocused) {
+            if (!isGatewayIpFocused) {
+                saveFieldOnFocusOut(localGatewayIp, uiState.gatewayIp, viewModel::updateGatewayIp)
             }
         }
         
         OutlinedTextField(
-            value = localWifiName,
-            onValueChange = { localWifiName = it },
-            label = { Text("WiFi Network Name (starts with)") },
-            placeholder = { Text("MyHome") },
+            value = localGatewayIp,
+            onValueChange = { localGatewayIp = it },
+            label = { Text("Gateway IP") },
+            placeholder = { Text("192.168.1.1") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            interactionSource = wifiNameInteractionSource
+            interactionSource = gatewayIpInteractionSource
         )
 
         Spacer(modifier = Modifier.height(16.dp))
