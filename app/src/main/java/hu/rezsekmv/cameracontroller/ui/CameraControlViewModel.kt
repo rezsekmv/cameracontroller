@@ -25,7 +25,7 @@ data class CameraControlUiState(
     val getConfigPath: String = "/cgi-bin/configManager.cgi?action=getConfig&name=MotionDetect",
     val setConfigPath: String = "/cgi-bin/configManager.cgi?action=setConfig&MotionDetect[].Enable=",
     val timeoutSeconds: String = "2",
-    val wifiName: String = "",
+    val gatewayIp: String = "",
     val motionDetectionStatus: MotionDetectionStatus = MotionDetectionStatus(null, false),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -56,7 +56,7 @@ class CameraControlViewModel(context: Context) : ViewModel() {
             getConfigPath = settings.getConfigPath,
             setConfigPath = settings.setConfigPath,
             timeoutSeconds = settings.timeoutSeconds,
-            wifiName = settings.wifiName,
+            gatewayIp = settings.gatewayIp,
             motionDetectionStatus = motionStatus,
             isLoading = loading,
             errorMessage = error
@@ -136,10 +136,10 @@ class CameraControlViewModel(context: Context) : ViewModel() {
         }
     }
     
-    fun updateWifiName(wifiName: String) {
-        Log.d(TAG, "Updating WiFi name to: $wifiName")
+    fun updateGatewayIp(gatewayIp: String) {
+        Log.d(TAG, "Updating Gateway IP to: $gatewayIp")
         viewModelScope.launch {
-            preferencesRepository.updateWifiName(wifiName)
+            preferencesRepository.updateGatewayIp(gatewayIp)
         }
     }
 

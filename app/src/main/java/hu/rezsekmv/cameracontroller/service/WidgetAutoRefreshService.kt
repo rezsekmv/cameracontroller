@@ -9,6 +9,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET
+import android.net.NetworkCapabilities.TRANSPORT_WIFI
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -139,13 +144,68 @@ class WidgetAutoRefreshService : Service() {
     private fun checkWifiAndRefreshWidget() {
         serviceScope.launch {
             try {
-                Log.d(TAG, "Phone unlocked, refreshing widget on any WiFi connection")
+                val savedGatewayIp = preferencesRepository.getGatewayIp().trim()
+
+                if (savedGatewayIp.isEmpty()) {
+                    Log.d(TAG, "Gateway IP not set; skipping auto refresh")
+                    return@launch
+                }
+
+                if (!isNetworkConnected()) {
+                    Log.d(TAG, "No network connection; skipping auto refresh")
+                    return@launch
+                }
+
+                val currentGateway = getCurrentWifiGatewayIp()
+                if (currentGateway == null) {
+                    Log.d(TAG, "No Wi-Fi gateway available; skipping auto refresh")
+                    return@launch
+                }
+
+                if (!currentGateway.equals(savedGatewayIp, ignoreCase = true)) {
+                    Log.d(TAG, "Gateway mismatch (current=$currentGateway, expected=$savedGatewayIp); skipping auto refresh")
+                    return@launch
+                }
+
+                Log.d(TAG, "Network connected and gateway matches; refreshing widgets")
                 CameraWidgetProvider.refreshAllWidgets(applicationContext)
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Error refreshing widget", e)
             }
         }
+    }
+
+    private fun isNetworkConnected(): Boolean {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNetwork = connectivityManager.activeNetwork ?: return false
+        val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+        return networkCapabilities.hasCapability(NET_CAPABILITY_INTERNET)
+    }
+
+    private fun getCurrentWifiGatewayIp(): String? {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNetwork = connectivityManager.activeNetwork ?: return null
+        val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return null
+        if (!capabilities.hasTransport(TRANSPORT_WIFI)) {
+            return null
+        }
+
+        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val dhcpInfo = wifiManager.dhcpInfo ?: return null
+        val gateway = dhcpInfo.gateway
+        if (gateway == 0) return null
+        return intToIp(gateway)
+    }
+
+    private fun intToIp(ip: Int): String {
+        return String.format(
+            "%d.%d.%d.%d",
+            (ip and 0xFF),
+            (ip shr 8 and 0xFF),
+            (ip shr 16 and 0xFF),
+            (ip shr 24 and 0xFF)
+        )
     }
     
     private fun stopForegroundService() {
